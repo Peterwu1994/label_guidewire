@@ -35,8 +35,9 @@ class MainWindow(QMainWindow):
 
         # right
         # right up
-        self.resultLabel = QLabel('result', self.showWidget)
-        self.resultLW = QListWidget(self.showWidget)
+        self.interploateLabel = QLabel(self.showWidget)
+        self.interploateCombo = QComboBox(self.showWidget)
+        self.interploateCombo.addItems(['slinear', 'quadratic', 'cubic'])
         # right bottom
         self.boundingBT = QPushButton('bounding', self.showWidget)
         self.pointBT = QPushButton('point', self.showWidget)
@@ -57,6 +58,8 @@ class MainWindow(QMainWindow):
         self.ori_winna = 'ori'
         self.point_winna = 'point'
         self.fitting_winna = 'fitting'
+        # interploate kind
+        self.interploate_kind = 'slinear'
 
         self.init_ui()
         self.load_img()
@@ -76,16 +79,17 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         self.totalLabel.setText('total:')
         self.currentLabel.setText('current:')
+        self.interploateLabel.setText('interploate kind:')
         self.totalNum.setNum(0)
         self.currentNum.setNum(0)
         #setting
         self.boundingBT.setCheckable(True)
         self.pointBT.setCheckable(True)
         self.fittingBT.setCheckable(True)
+        self.interploateCombo.setCurrentText('slinear')
 
-        #layout
+        # appearance setting
         self.dirUpdate.setFont(QFont("Helvetica", 16, QFont.Black))
-        #self.dirUpdate.setAlignment(Qt.AlignBottom)
         self.dirLE.setFont(QFont("Helvetica", 12, QFont.Normal))
         self.totalLabel.setAlignment(Qt.AlignBottom)
         self.totalLabel.setFont(QFont("Helvetica", 14, QFont.Black))
@@ -111,8 +115,11 @@ class MainWindow(QMainWindow):
         self.fittingBT.setFont(QFont("Helvetica", 14, QFont.Black))
         self.pointBT.setFont(QFont("Helvetica", 14, QFont.Black))
 
-        #layout
-        #left
+        self.interploateLabel.setFont(QFont("Helvetica", 14, QFont.Black))
+        self.interploateCombo.setFont(QFont("Helvetica", 14, QFont.Black))
+
+        # layout
+        # left up
         self.leftUpLayOut = QGridLayout()
         self.leftUpLayOut.addWidget(self.dirLE, 0, 0, 1, 2)
         self.leftUpLayOut.addWidget(self.dirUpdate, 1, 0)
@@ -120,24 +127,20 @@ class MainWindow(QMainWindow):
         self.leftUpLayOut.addWidget(self.totalNum, 3, 0)
         self.leftUpLayOut.addWidget(self.currentLabel, 2, 1)
         self.leftUpLayOut.addWidget(self.currentNum, 3, 1)
-        #self.leftUpLayOut.setColumnStretch(0,1)
-        #self.leftUpLayOut.setColumnStretch(1,1)
 
         self.leftBottomLayOut = QGridLayout()
         self.leftBottomLayOut.addWidget(self.previousBT, 0, 0)
         self.leftBottomLayOut.addWidget(self.nextBT, 0, 1)
         self.leftBottomLayOut.addWidget(self.saveBT, 1, 0)
         self.leftBottomLayOut.addWidget(self.quitBT, 1, 1)
-        #self.leftBottomLayOut.setColumnStretch(0,1)
-        #self.leftBottomLayOut.setColumnStretch(1,1)
         self.leftLayOut = QVBoxLayout()
         self.leftLayOut.addLayout(self.leftUpLayOut)
         self.leftLayOut.addLayout(self.leftBottomLayOut)
 
         #right
         self.rightLayOut = QGridLayout()
-        self.rightLayOut.addWidget(self.resultLabel, 0, 0)
-        self.rightLayOut.addWidget(self.resultLW, 1, 0, 1, 3)
+        self.rightLayOut.addWidget(self.interploateLabel,0,0)
+        self.rightLayOut.addWidget(self.interploateCombo,0,1)
         self.rightLayOut.addWidget(self.boundingBT,2, 0)
         self.rightLayOut.addWidget(self.pointBT, 2, 1)
         self.rightLayOut.addWidget(self.fittingBT, 2, 2)
@@ -155,9 +158,15 @@ class MainWindow(QMainWindow):
         self.boundingBT.clicked[bool].connect(self.event_boundingBT)
         self.pointBT.clicked[bool].connect(self.event_pointBT)
         self.fittingBT.clicked[bool].connect(self.event_fittingBT)
+        self.interploateCombo.activated[str].connect(self.event_fitting_kind)
+
+
+    def event_fitting_kind(self, text):
+        self.interploate_kind = text
+        self.interploateLabel.setText(text)
 
     def event_fittingBT(self, pressed):
-        if  pressed:
+        if pressed:
             self.bounding_flag = False
             self.point_flag = False
             self.fitting_flag = True
@@ -166,72 +175,123 @@ class MainWindow(QMainWindow):
             self.fitting_flag = False
             # self.fitting_finish()
 
-    def fitting(self):
+    def fitting_slinear(self):
+        self.fitting_point_list.clear()
+
+        x = [i[0] for i in self.point_list_zoom]
+        y = [i[1] for i in self.point_list_zoom]
+
+        for i in range(len(x) - 1):
+            if x[i+1] > x[i]:
+                step = 1
+            elif x[i+1] < x[i]:
+                step = -1
+            else:
+                for j in range(min(y[i],y[i+1]), max(y[i],y[i+1])):
+                    self.fitting_point_list.append((x[i], j))
+                continue
+
+            func = interpolate.interp1d([x[i], x[i + 1]], [y[i], y[i + 1]], 'slinear')
+            for j in range(x[i], x[i + 1], step):
+                self.fitting_point_list.append((j, func(j)))
+
+    def fitting_quadratic(self):
+        self.fitting_point_list.clear()
+
         if self.point_list_zoom[0][0] > self.point_list_zoom[1][0]:
             flag = -1
-        else:
+        elif self.point_list_zoom[0][0] < self.point_list_zoom[1][0]:
             flag = 1
-        x_curve = []
-        y_curve = []
-        point_to_interpolate = []
-        point_to_interpolate.append(self.point_list_zoom[0])
+        else:
+            flag = 0
+
+        point_seg = []
+        point_to_interpolate = [self.point_list_zoom[0]]
         for i in range(len(self.point_list_zoom) - 1):
             x1 = self.point_list_zoom[i][0]
             x2 = self.point_list_zoom[i+1][0]
-            if (x2 - x1) * flag > 0:
+            if (x2 - x1) * flag > 0 or (x2 == x1 and flag == 0):
                 point_to_interpolate.append(self.point_list_zoom[i+1])
             else:
-                x_tmp = [j[0] for j in point_to_interpolate]
-                y_tmp = [j[1] for j in point_to_interpolate]
-                func = interpolate.interp1d(x_tmp, y_tmp, "quadratic")
-                if flag > 0:
-                    for k in range(x_tmp[0], x_tmp[-1]):
-                        x_curve.append(k)
-                        y_curve.append(func(k))
-                else:
-                    for k in range(x_tmp[0], x_tmp[-1], -1):
-                        x_curve.append(k)
-                        y_curve.append(func(k))
+                point_seg.append(point_to_interpolate.copy())
                 point_to_interpolate.clear()
                 point_to_interpolate.append(self.point_list_zoom[i])
-                flag *= -1
+                if self.point_list_zoom[i][0] > self.point_list_zoom[i+1][0]:
+                    flag = -1
+                elif self.point_list_zoom[i][0] < self.point_list_zoom[i+1][0]:
+                    flag = 1
+                else:
+                    flag = 0
 
-        x_tmp = [j[0] for j in point_to_interpolate]
-        y_tmp = [j[1] for j in point_to_interpolate]
-        func = interpolate.interp1d(x_tmp, y_tmp, "cubic")
-        if flag > 0:
-            for k in range(x_tmp[0], x_tmp[-1]):
-                x_curve.append(k)
-                y_curve.append(func(k))
-        else:
-            for k in range(x_tmp[0], x_tmp[-1], -1):
-                x_curve.append(k)
-                y_curve.append(func(k))
-        '''       
-        x = [i[0] for i in self.point_list_zoom]
-        y = [i[1] for i in self.point_list_zoom]
-        print(x)
-        print(y)
-        
-        func = interpolate.interp1d(x, y, "slinear")
-        for i in range(len(x) - 1):
-            if x[i+1] >= x[i]:
-                func = interpolate.interp1d([x[i],x[i+1]], [y[i], y[i+1]], 'slinear')
-                for j in range(x[i], x[i+1]):
-                    x_curve.append(j)
-                    y_curve.append(func(j))
+        point_seg.append(point_to_interpolate.copy())
+
+        for point_to_interpolate in point_seg:
+            x = [i[0] for i in point_to_interpolate]
+            y = [i[1] for i in point_to_interpolate]
+            if x[0] > x[-1]:
+                func = interpolate.interp1d(x, y, 'quadratic')
+                for i in range(x[0], x[-1], -1):
+                    self.fitting_point_list.append((i, func(i)))
+            elif x[0] < x[-1]:
+                func = interpolate.interp1d(x, y, 'quadratic')
+                for i in range(x[0], x[-1]):
+                    self.fitting_point_list.append((i, func(i)))
             else:
-                func = interpolate.interp1d([x[i+1], x[i]], [y[i+1], y[i]], 'slinear')
-                for j in range(x[i+1], x[i]):
-                    x_curve.append(j)
-                    y_curve.append(func(j))
-        x_min = min(x)
-        x_max = max(x)
-        x_curve = range(x_min, x_max)
-        y_curve = [func(i) for i in x_curve]
-        '''
-        for i in range(len(x_curve)):
-            self.fitting_point_list.append((x_curve[i], y_curve[i]))
+                for i in range(min(y), max(y)):
+                    self.fitting_point_list.append((x[0], i))
+
+    def fitting_cubic(self):
+        self.fitting_point_list.clear()
+
+        if self.point_list_zoom[0][0] > self.point_list_zoom[1][0]:
+            flag = -1
+        elif self.point_list_zoom[0][0] < self.point_list_zoom[1][0]:
+            flag = 1
+        else:
+            flag = 0
+
+        point_seg = []
+        point_to_interpolate = [self.point_list_zoom[0]]
+        for i in range(len(self.point_list_zoom) - 1):
+            x1 = self.point_list_zoom[i][0]
+            x2 = self.point_list_zoom[i + 1][0]
+            if (x2 - x1) * flag > 0 or (x2 == x1 and flag == 0):
+                point_to_interpolate.append(self.point_list_zoom[i + 1])
+            else:
+                point_seg.append(point_to_interpolate.copy())
+                point_to_interpolate.clear()
+                point_to_interpolate.append(self.point_list_zoom[i])
+                if self.point_list_zoom[i][0] > self.point_list_zoom[i+1][0]:
+                    flag = -1
+                elif self.point_list_zoom[i][0] < self.point_list_zoom[i+1][0]:
+                    flag = 1
+                else:
+                    flag = 0
+
+        point_seg.append(point_to_interpolate.copy())
+
+        for point_to_interpolate in point_seg:
+            x = [i[0] for i in point_to_interpolate]
+            y = [i[1] for i in point_to_interpolate]
+            if x[0] > x[-1]:
+                func = interpolate.interp1d(x, y, 'cubic')
+                for i in range(x[0], x[-1], -1):
+                    self.fitting_point_list.append((i, func(i)))
+            elif x[0] < x[-1]:
+                func = interpolate.interp1d(x, y, 'cubic')
+                for i in range(x[0], x[-1]):
+                    self.fitting_point_list.append((i, func(i)))
+            else:
+                for i in range(min(y), max(y)):
+                    self.fitting_point_list.append((x[0], i))
+
+    def fitting(self):
+        if self.interploate_kind == 'slinear':
+            self.fitting_slinear()
+        elif self.interploate_kind == 'quadratic':
+            self.fitting_quadratic()
+        else:
+            self.fitting_cubic()
 
         img_tmp = self.zoom_img(self.bounding_img)
         self.draw_point_zoom(img_tmp, 'fitting')
@@ -292,7 +352,7 @@ class MainWindow(QMainWindow):
                 cv2.circle(img, point_coor, 10, (255, 0, 0), 5)
         elif mode == 'fitting':
             for point_coor in self.fitting_point_list:
-                cv2.circle(img, point_coor, 5, (0, 0, 255), 5)
+                cv2.circle(img, point_coor, 5, (0, 0, 255), -1)
         return img
 
     def zoom_img(self,img):
