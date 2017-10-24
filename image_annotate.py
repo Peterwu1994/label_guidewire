@@ -12,7 +12,7 @@ import matplotlib
 
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
-
+sys.setrecursionlimit(1000000)
 
 class MainWindow(QMainWindow):
     def __init__(self, img_path, save_path):
@@ -27,6 +27,7 @@ class MainWindow(QMainWindow):
         self.init_ui()
         self.load_img()
         self.event_set()
+        self.bounding_box()
 
     def init_vars(self):
         # mem var
@@ -40,7 +41,10 @@ class MainWindow(QMainWindow):
         self.point_list_zoom = []
         # self.point_list_ori = []
         self.fitting_point_list = []
-        self.zoom_ratio = 1
+        self.zoom_ratio = 8
+        self.zoomCombo.setCurrentText('8')
+        self.radius = 12
+        self.radiusCombo.setCurrentText('12')
         self.bounding_winna = 'bounding'
         self.ori_winna = 'ori'
         self.point_winna = 'point'
@@ -48,7 +52,9 @@ class MainWindow(QMainWindow):
         # interploate kind
         self.interploate_kind = 'slinear'
         self.interploateCombo.setCurrentText('slinear')
-
+        self.fitting_flag = 0
+        self.bounding_flag = 0
+        self.point_flag = 0
         # img
         self.fitting_img = None
         self.label_img = None
@@ -82,11 +88,19 @@ class MainWindow(QMainWindow):
         self.interploateLabel = QLabel(self.showWidget)
         self.interploateCombo = QComboBox(self.showWidget)
         self.interploateCombo.addItems(['slinear', 'quadratic', 'cubic'])
+
+        self.zoomLabel = QLabel(self.showWidget)
+        self.zoomCombo = QComboBox(self.showWidget)
+        self.zoomCombo.addItems(['5','6','7','8','9','10','11'])
+
+        self.radiusLabel = QLabel(self.showWidget)
+        self.radiusCombo = QComboBox(self.showWidget)
+        self.radiusCombo.addItems(['6','7','8','9','10','11','12'])
         # right bottom
         self.boundingBT = QPushButton('bounding', self.showWidget)
         self.pointBT = QPushButton('point', self.showWidget)
         self.fittingBT = QPushButton('fitting', self.showWidget)
-        self.zoomSLD = QSlider(Qt.Horizontal, self.showWidget)
+        # self.zoomSLD = QSlider(Qt.Horizontal, self.showWidget)
 
     def path_init(self, img_path, save_path):
         self.save_path = save_path
@@ -113,14 +127,13 @@ class MainWindow(QMainWindow):
         self.dirLE.setText(img_path)
 
     def init_ui(self):
+        # setting label text
         self.totalLabel.setText('total:')
         self.currentLabel.setText('current:')
         self.interploateLabel.setText('interploate kind:')
-        # setting
-        # self.boundingBT.setCheckable(True)
-        # self.pointBT.setCheckable(True)
-        # self.fittingBT.setCheckable(True)
-        # self.saveBT.setCheckable(True)
+        self.zoomLabel.setText('zoom')
+        self.radiusLabel.setText('radius')
+        # setting shortcuts
         self.boundingBT.setShortcut('b')
         self.pointBT.setShortcut('p')
         self.fittingBT.setShortcut('f')
@@ -149,12 +162,16 @@ class MainWindow(QMainWindow):
         self.saveBT.setFont(QFont("Times", 18, QFont.Bold))
         self.quitBT.setFont(QFont("Times", 18, QFont.Bold))
 
-        self.boundingBT.setFont(QFont("Helvetica", 14, QFont.Black))
-        self.fittingBT.setFont(QFont("Helvetica", 14, QFont.Black))
-        self.pointBT.setFont(QFont("Helvetica", 14, QFont.Black))
+        self.boundingBT.setFont(QFont("Helvetica", 16, QFont.Black))
+        self.fittingBT.setFont(QFont("Helvetica", 16, QFont.Black))
+        self.pointBT.setFont(QFont("Helvetica", 18, QFont.Black))
 
         self.interploateLabel.setFont(QFont("Helvetica", 14, QFont.Black))
         self.interploateCombo.setFont(QFont("Helvetica", 14, QFont.Black))
+        self.zoomLabel.setFont(QFont("Helvetica", 14, QFont.Black))
+        self.zoomCombo.setFont(QFont("Helvetica", 14, QFont.Black))
+        self.radiusLabel.setFont(QFont("Helvetica", 14, QFont.Black))
+        self.radiusCombo.setFont(QFont("Helvetica", 14, QFont.Black))
 
         # layout
         # left up
@@ -179,10 +196,14 @@ class MainWindow(QMainWindow):
         self.rightLayOut = QGridLayout()
         self.rightLayOut.addWidget(self.interploateLabel, 0, 0)
         self.rightLayOut.addWidget(self.interploateCombo, 0, 1)
-        self.rightLayOut.addWidget(self.boundingBT, 2, 0)
-        self.rightLayOut.addWidget(self.pointBT, 2, 1)
-        self.rightLayOut.addWidget(self.fittingBT, 2, 2)
-        self.rightLayOut.addWidget(self.zoomSLD, 3, 0, 1, 3)
+        self.rightLayOut.addWidget(self.zoomLabel, 1, 0)
+        self.rightLayOut.addWidget(self.zoomCombo, 1, 1)
+        self.rightLayOut.addWidget(self.radiusLabel, 2, 0)
+        self.rightLayOut.addWidget(self.radiusCombo, 2, 1)
+
+        self.rightLayOut.addWidget(self.boundingBT, 3, 0)
+        self.rightLayOut.addWidget(self.pointBT, 3, 1)
+        self.rightLayOut.addWidget(self.fittingBT, 4, 0, 2, 2)
         # main
         self.mainLayout = QHBoxLayout()
         self.mainLayout.addLayout(self.leftLayOut)
@@ -204,7 +225,7 @@ class MainWindow(QMainWindow):
         self.point_list_zoom = []
         # self.point_list_ori = []
         self.fitting_point_list = []
-        self.zoom_ratio = 1
+        #self.zoom_ratio = 1
         self.bounding_winna = 'bounding'
         self.ori_winna = 'ori'
         self.point_winna = 'point'
@@ -212,6 +233,9 @@ class MainWindow(QMainWindow):
         # interploate kind
         self.interploate_kind = 'slinear'
         self.interploateCombo.setCurrentText('slinear')
+        self.fitting_flag = 0
+        self.bounding_flag = 0
+        self.point_flag = 0
 
         # img
         self.fitting_img = None
@@ -225,6 +249,21 @@ class MainWindow(QMainWindow):
         self.saveBT.clicked.connect(self.event_saveBT)
         self.nextBT.clicked.connect(self.event_nextBT)
         self.previousBT.clicked.connect(self.event_previousBT)
+        self.zoomCombo.activated[str].connect(self.event_zoom)
+        self.radiusCombo.activated[str].connect(self.event_radius)
+
+    def event_radius(self,text):
+        self.radius = int(text)
+        self.radiusCombo.setCurrentText(text)
+        if self.fitting_flag == 1:
+            self.fitting()
+
+
+    def event_zoom(self,text):
+        self.zoom_ratio = int(text)
+        self.zoomCombo.setCurrentText(text)
+        if self.bounding_flag:
+            self.point()
 
     def event_nextBT(self):
         if self.current_index < len(self.file_list) - 1:
@@ -234,6 +273,7 @@ class MainWindow(QMainWindow):
             self.clear_vars()
             self.load_img()
             self.currentNum.setNum(self.current_index+1)
+            self.bounding_box()
         else:
             print("the last one")
 
@@ -245,6 +285,7 @@ class MainWindow(QMainWindow):
             self.clear_vars()
             self.load_img()
             self.currentNum.setNum(self.current_index+1)
+            self.bounding_box()
         else:
             print("the first one")
 
@@ -264,8 +305,9 @@ class MainWindow(QMainWindow):
                     self.label_img[offset_y + j][offset_x + i] = 255
         save_file_name = os.path.join(self.save_path, self.img_file)
         cv2.imwrite(save_file_name, self.label_img)
+        cv2.namedWindow('label', cv2.WINDOW_NORMAL)
         cv2.imshow('label', self.label_img)
-        cv2.waitKey(0)
+        cv2.waitKey(300)
 
     def event_fitting_kind(self, text):
         self.interploate_kind = text
@@ -291,9 +333,9 @@ class MainWindow(QMainWindow):
         y = [i[1] for i in self.point_list_zoom]
 
         for i in range(len(x) - 1):
-            if x[i + 1] > x[i]:
+            if x[i + 1] - x[i] > 3:
                 step = 1
-            elif x[i + 1] < x[i]:
+            elif x[i + 1] - x[i] < -3:
                 step = -1
             else:
                 for j in range(min(y[i], y[i + 1]), max(y[i], y[i + 1])):
@@ -395,6 +437,7 @@ class MainWindow(QMainWindow):
                     self.fitting_point_list.append((x[0], i))
 
     def fitting(self):
+        self.point_flag = 1
         if self.interploate_kind == 'slinear':
             self.fitting_slinear()
         elif self.interploate_kind == 'quadratic':
@@ -405,6 +448,8 @@ class MainWindow(QMainWindow):
         img_tmp = self.zoom_img(self.bounding_img)
         self.draw_point_zoom(img_tmp, 'fitting')
         self.fitting_img = img_tmp
+        self.fitting_flag = 1
+        cv2.namedWindow(self.fitting_winna, cv2.WINDOW_NORMAL)
         cv2.imshow(self.fitting_winna, img_tmp)
         cv2.waitKey(300)
         self.event_saveBT()
@@ -437,7 +482,7 @@ class MainWindow(QMainWindow):
 
     def point(self):
         cv2.destroyAllWindows()
-        self.zoom_ratio = 8
+        self.point_list_zoom.clear()
         img_tmp = self.zoom_img(self.bounding_img)
         cv2.imshow(self.point_winna, img_tmp)
         cv2.setMouseCallback(self.point_winna, self.point_mouse)
@@ -450,6 +495,8 @@ class MainWindow(QMainWindow):
             self.add_point(x, y)
             self.draw_point_zoom(img_tmp, 'point')
             cv2.imshow(self.point_winna, img_tmp)
+        elif event == cv2.EVENT_LBUTTONDBLCLK:
+            self.fitting()
 
     def add_point(self, x, y):
         self.point_list_zoom.append((x, y))
@@ -466,11 +513,11 @@ class MainWindow(QMainWindow):
     def draw_point_zoom(self, img, mode):
         if mode == 'point':
             for point_coor in self.point_list_zoom:
-                cv2.circle(img, point_coor, 10, (255, 0, 0), 5)
-            cv2.putText(img, str(len(self.point_list_zoom)), (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 0, 0), 5)
+                cv2.circle(img, point_coor, self.radius, (255, 0, 0), -1)
+            # cv2.putText(img, str(len(self.point_list_zoom)), (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 0, 0), 5)
         elif mode == 'fitting':
             for point_coor in self.fitting_point_list:
-                cv2.circle(img, point_coor, 8, (0, 0, 255), -1)
+                cv2.circle(img, point_coor, self.radius, (0, 0, 255), -1)
         return img
 
     def zoom_img(self, img):
@@ -513,6 +560,8 @@ class MainWindow(QMainWindow):
             height = abs(self.point1[1] - self.point2[1])
             self.bounding_img = self.ori_img[min_y:min_y + height, min_x:min_x + width]
             self.bounding_coor = (min_x, min_y, width, height)
+            print(self.bounding_coor)
+            self.bounding_flag = 1
             self.point()
 
 
